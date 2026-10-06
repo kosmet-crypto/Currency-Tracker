@@ -16,10 +16,14 @@ class RatesWidget : AppWidgetProvider() {
     }
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == ACTION_REFRESH) {
-            refreshInBackground(context)
-        } else {
-            super.onReceive(context, intent)
+        when (intent.action) {
+            ACTION_REFRESH -> refreshInBackground(context)
+            ACTION_PERIOD -> {
+                val period = Period.entries.find { it.name == intent.getStringExtra(EXTRA_PERIOD) } ?: return
+                RatesRepository.setPeriod(context, period)
+                refreshInBackground(context)
+            }
+            else -> super.onReceive(context, intent)
         }
     }
 
@@ -41,6 +45,10 @@ class RatesWidget : AppWidgetProvider() {
 
     companion object {
         const val ACTION_REFRESH = "com.kosmet.currency.REFRESH"
+        const val ACTION_PERIOD = "com.kosmet.currency.PERIOD"
+        const val EXTRA_PERIOD = "period"
+
+        private val PERIOD_CHIPS = intArrayOf(R.id.w_p1, R.id.w_p2, R.id.w_p3, R.id.w_p4)
 
         private val ROWS = arrayOf(
             intArrayOf(R.id.w_row1, R.id.w_name1, R.id.w_price1, R.id.w_change1, R.id.w_chart1),
@@ -85,12 +93,32 @@ class RatesWidget : AppWidgetProvider() {
                 }
             }
 
+            // Header is narrow: just the time, with a warning sign if something failed.
             val status = when {
-                loading -> context.getString(R.string.updating)
-                snapshot?.error != null -> "⚠ " + snapshot.error
-                else -> context.getString(R.string.updated_at, Ui.time(snapshot?.updatedAt ?: 0))
+                loading -> "…"
+                snapshot?.error != null -> "⚠ " + Ui.shortTime(snapshot.updatedAt)
+                else -> Ui.shortTime(snapshot?.updatedAt ?: 0)
             }
             views.setTextViewText(R.id.w_status, status)
+
+            val selected = RatesRepository.period(context)
+            Period.entries.forEachIndexed { i, period ->
+                val id = PERIOD_CHIPS[i]
+                val on = period == selected
+                views.setTextViewText(id, period.label)
+                views.setTextColor(id, if (on) Ui.GREEN else Ui.GREY)
+                views.setInt(id, "setBackgroundResource", if (on) R.drawable.chip_on else R.drawable.chip_off)
+                val intent = Intent(context, RatesWidget::class.java)
+                    .setAction(ACTION_PERIOD)
+                    .putExtra(EXTRA_PERIOD, period.name)
+                views.setOnClickPendingIntent(
+                    id,
+                    PendingIntent.getBroadcast(
+                        context, 10 + i, intent,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    ),
+                )
+            }
 
             val refresh = Intent(context, RatesWidget::class.java).setAction(ACTION_REFRESH)
             views.setOnClickPendingIntent(

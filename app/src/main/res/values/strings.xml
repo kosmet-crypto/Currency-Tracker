@@ -4,7 +4,7 @@
     <string name="widget_name">Курсеви уживо</string>
     <string name="widget_description">Изабрани парови валута са графиком за 24 сата</string>
     <string name="converter">Конвертор</string>
-    <string name="live">Виџет и курс уживо (24 сата)</string>
+    <string name="live">Виџет и курс уживо</string>
     <string name="refresh">Ажурирај</string>
     <string name="updating">Ажурирам…</string>
     <string name="updated_at">Ажурирано: %1$s</string>
@@ -23,4 +23,7 @@
     <string name="max_pairs">Највише 4 пара</string>
     <string name="min_currencies">Конвертору требају бар две валуте</string>
     <string name="pair_exists">Тај пар већ постоји</string>
+    <string name="drag">Превуци</string>
+    <string name="drag_hint">Превуци ≡ за редослед. Прва валута је основна, остале се пореде са њом.</string>
+    <string name="base_currency">основна валута</string>
 </resources>

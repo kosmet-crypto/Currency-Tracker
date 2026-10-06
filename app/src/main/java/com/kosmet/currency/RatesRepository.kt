@@ -16,7 +16,16 @@ data class PairQuote(
     val points: List<Double>,
 )
 
+/** History range for charts and change; interval and size are Twelve Data parameters. */
+enum class Period(val label: String, val interval: String, val size: Int) {
+    D1("1Д", "15min", 96),
+    W1("7Д", "1h", 168),
+    M1("30Д", "4h", 180),
+    Y1("1Г", "1day", 365),
+}
+
 data class Snapshot(
+    val period: Period,
     val pairs: List<PairQuote>,
     /** How many units of each currency one euro buys. */
     val perEur: Map<String, Double>,
@@ -47,6 +56,14 @@ object RatesRepository {
     private const val KEY_CURRENCIES = "converter_currencies"
     private const val KEY_PAIRS = "widget_pairs"
     private const val KEY_INVERTED = "inverted_symbols"
+    private const val KEY_PERIOD = "period"
+
+    fun period(ctx: Context): Period =
+        Period.entries.find { it.name == prefs(ctx).getString(KEY_PERIOD, null) } ?: Period.D1
+
+    fun setPeriod(ctx: Context, period: Period) {
+        prefs(ctx).edit().putString(KEY_PERIOD, period.name).apply()
+    }
 
     fun converterCurrencies(ctx: Context): List<String> =
         prefs(ctx).getString(KEY_CURRENCIES, "EUR,USD,NOK,RSD")!!.split(',').filter { it.isNotBlank() }
@@ -88,7 +105,9 @@ object RatesRepository {
 
     @Synchronized
     fun refresh(ctx: Context): Snapshot {
+        val period = period(ctx)
         val old = load(ctx)
+        val oldPairs = if (old != null && old.period == period) old.pairs else emptyList()
         val errors = mutableListOf<String>()
         var fresh = 0
 
@@ -107,7 +126,7 @@ object RatesRepository {
         val pairs = mutableListOf<PairQuote>()
         for (symbol in widgetPairs(ctx)) {
             val quote = try {
-                if (key.isBlank()) null else fetchLive(symbol, key, inverted).also { fresh++ }
+                if (key.isBlank()) null else fetchLive(symbol, key, period, inverted).also { fresh++ }
             } catch (e: SymbolException) {
                 null // e.g. RSD pairs: shown with the daily rate, no chart
             } catch (e: Exception) {
@@ -116,7 +135,7 @@ object RatesRepository {
             }
             // No live data: keep the last chart, or fall back to the daily rate.
             pairs += quote
-                ?: old?.pairs?.find { it.symbol == symbol && it.points.isNotEmpty() }
+                ?: oldPairs.find { it.symbol == symbol && it.points.isNotEmpty() }
                 ?: dailyQuote(symbol, perEur)
                 ?: continue
         }
@@ -131,6 +150,7 @@ object RatesRepository {
         }
 
         val snapshot = Snapshot(
+            period = period,
             pairs = pairs,
             perEur = perEur,
             updatedAt = if (fresh > 0) System.currentTimeMillis() else old?.updatedAt ?: 0L,
@@ -141,11 +161,13 @@ object RatesRepository {
     }
 
     /** The chosen pairs in order, right after the user changes them and before a refresh. */
-    fun quotes(ctx: Context, snapshot: Snapshot?): List<Pair<String, PairQuote?>> =
-        widgetPairs(ctx).map { symbol ->
-            symbol to (snapshot?.pairs?.find { it.symbol == symbol }
+    fun quotes(ctx: Context, snapshot: Snapshot?): List<Pair<String, PairQuote?>> {
+        val current = if (snapshot != null && snapshot.period == period(ctx)) snapshot.pairs else emptyList()
+        return widgetPairs(ctx).map { symbol ->
+            symbol to (current.find { it.symbol == symbol }
                 ?: snapshot?.let { dailyQuote(symbol, it.perEur) })
         }
+    }
 
     private fun dailyQuote(symbol: String, perEur: Map<String, Double>): PairQuote? {
         val (base, quote) = symbol.split('/')
@@ -155,13 +177,13 @@ object RatesRepository {
     }
 
     /** Twelve Data lists most pairs in one direction only; try the other one and flip it. */
-    private fun fetchLive(symbol: String, key: String, inverted: MutableSet<String>): PairQuote {
+    private fun fetchLive(symbol: String, key: String, period: Period, inverted: MutableSet<String>): PairQuote {
         val first = if (symbol in inverted) inverse(symbol) else symbol
         val result = try {
-            fetchPair(first, key)
+            fetchPair(first, key, period)
         } catch (e: SymbolException) {
             val other = inverse(first)
-            fetchPair(other, key).also {
+            fetchPair(other, key, period).also {
                 if (other == symbol) inverted -= symbol else inverted += symbol
             }
         }
@@ -178,11 +200,10 @@ object RatesRepository {
 
     private class SymbolException(msg: String) : IOException(msg)
 
-    /** Last 24 hours in 15-minute steps. */
-    private fun fetchPair(symbol: String, key: String): PairQuote {
+    private fun fetchPair(symbol: String, key: String, period: Period): PairQuote {
         val url = "https://api.twelvedata.com/time_series" +
             "?symbol=" + URLEncoder.encode(symbol, "UTF-8") +
-            "&interval=15min&outputsize=96&timezone=UTC" +
+            "&interval=" + period.interval + "&outputsize=" + period.size + "&timezone=UTC" +
             "&apikey=" + URLEncoder.encode(key, "UTF-8")
         val json = JSONObject(httpGet(url))
         if (json.optString("status") == "error") {
@@ -232,6 +253,7 @@ object RatesRepository {
     }
 
     private fun toJson(s: Snapshot): JSONObject = JSONObject().apply {
+        put("period", s.period.name)
         put("updatedAt", s.updatedAt)
         put("error", s.error ?: JSONObject.NULL)
         put("perEur", JSONObject(s.perEur as Map<*, *>))
@@ -264,6 +286,7 @@ object RatesRepository {
             )
         }
         return Snapshot(
+            period = Period.entries.find { it.name == o.optString("period") } ?: Period.D1,
             pairs = pairs,
             perEur = perEur,
             updatedAt = o.optLong("updatedAt"),

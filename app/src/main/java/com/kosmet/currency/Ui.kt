@@ -26,6 +26,14 @@ object Ui {
         if (p.points.isEmpty()) "дневни курс"
         else String.format(Locale.US, if (p.price < 0.1) "%+.6f (%+.2f%%)" else "%+.4f (%+.2f%%)", p.change, p.changePct)
 
+    /** Time only for today, date and time otherwise. */
+    fun shortTime(millis: Long): String {
+        if (millis <= 0) return "—"
+        val day = SimpleDateFormat("yyyyMMdd", Locale.US)
+        val pattern = if (day.format(Date(millis)) == day.format(Date())) "HH:mm" else "dd.MM. HH:mm"
+        return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(millis))
+    }
+
     fun time(millis: Long): String =
         if (millis <= 0) "—" else SimpleDateFormat("dd.MM. HH:mm", Locale.getDefault()).format(Date(millis))
 

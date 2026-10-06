@@ -5,7 +5,10 @@ import android.app.AlertDialog
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
+import android.view.DragEvent
 import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -18,8 +21,8 @@ import java.util.Locale
 class MainActivity : Activity() {
 
     private val inputs = LinkedHashMap<String, EditText>()
+    private val rateLabels = HashMap<String, TextView>()
     private lateinit var status: TextView
-    private lateinit var ratesText: TextView
     private lateinit var refreshButton: Button
     private lateinit var converterBox: LinearLayout
     private lateinit var pairsBox: LinearLayout
@@ -33,7 +36,6 @@ class MainActivity : Activity() {
         setContentView(R.layout.activity_main)
 
         status = findViewById(R.id.status)
-        ratesText = findViewById(R.id.rates_text)
         refreshButton = findViewById(R.id.btn_refresh)
         converterBox = findViewById(R.id.converter_rows)
         pairsBox = findViewById(R.id.pairs)
@@ -41,6 +43,8 @@ class MainActivity : Activity() {
         refreshButton.setOnClickListener { refresh() }
         findViewById<Button>(R.id.btn_add_currency).setOnClickListener { addCurrency() }
         findViewById<Button>(R.id.btn_add_pair).setOnClickListener { addPair() }
+        converterBox.setOnDragListener { _, event -> onConverterDrag(event) }
+        setupPeriodChips()
 
         val keyField = findViewById<EditText>(R.id.api_key)
         keyField.setText(RatesRepository.savedApiKey(this))
@@ -84,6 +88,7 @@ class MainActivity : Activity() {
     private fun buildConverter(codes: List<String>) {
         val amounts = inputs.mapValues { it.value.text.toString() }
         inputs.clear()
+        rateLabels.clear()
         converterBox.removeAllViews()
         val inflater = LayoutInflater.from(this)
         for (code in codes) {
@@ -102,10 +107,20 @@ class MainActivity : Activity() {
                 }
             })
             row.findViewById<ImageButton>(R.id.c_remove).setOnClickListener { removeCurrency(code) }
+            row.tag = code
+            row.findViewById<View>(R.id.c_handle).setOnTouchListener { _, e ->
+                if (e.action != MotionEvent.ACTION_DOWN) return@setOnTouchListener false
+                if (row.startDragAndDrop(null, View.DragShadowBuilder(row), row, 0)) {
+                    row.visibility = View.INVISIBLE
+                }
+                true
+            }
+            rateLabels[code] = row.findViewById(R.id.c_rate)
             inputs[code] = field
             converterBox.addView(row)
         }
         if (lastEdited !in inputs) lastEdited = codes.first()
+        updateRateLabels()
     }
 
     private fun addCurrency() {
@@ -127,6 +142,54 @@ class MainActivity : Activity() {
         RatesRepository.setConverterCurrencies(this, codes)
         buildConverter(codes)
         recalculate()
+    }
+
+    /** Moves the dragged row live as it passes others; saves the order on release. */
+    private fun onConverterDrag(event: DragEvent): Boolean {
+        val dragged = event.localState as? View ?: return false
+        when (event.action) {
+            DragEvent.ACTION_DRAG_LOCATION -> {
+                var target = converterBox.childCount - 1
+                for (i in 0 until converterBox.childCount) {
+                    val child = converterBox.getChildAt(i)
+                    if (event.y < child.top + child.height / 2f) {
+                        target = i
+                        break
+                    }
+                }
+                if (converterBox.indexOfChild(dragged) != target) {
+                    converterBox.removeView(dragged)
+                    converterBox.addView(dragged, target)
+                }
+            }
+            DragEvent.ACTION_DRAG_ENDED -> {
+                dragged.visibility = View.VISIBLE
+                val codes = (0 until converterBox.childCount).map { converterBox.getChildAt(it).tag as String }
+                if (codes != inputs.keys.toList()) {
+                    val reordered = codes.associateWith { inputs.getValue(it) }
+                    inputs.clear()
+                    inputs.putAll(reordered)
+                    RatesRepository.setConverterCurrencies(this, codes)
+                    updateRateLabels()
+                }
+            }
+        }
+        return true
+    }
+
+    /** "1 EUR = 117.15 RSD" under each row, against the first currency. */
+    private fun updateRateLabels() {
+        val perEur = snapshot?.perEur.orEmpty()
+        val base = inputs.keys.firstOrNull() ?: return
+        val baseRate = perEur[base]
+        for ((code, label) in rateLabels) {
+            val rate = perEur[code]
+            label.text = when {
+                code == base -> getString(R.string.base_currency)
+                baseRate == null || rate == null -> ""
+                else -> "1 $base = " + Ui.price(rate / baseRate) + " " + code
+            }
+        }
     }
 
     private fun recalculate() {
@@ -194,6 +257,34 @@ class MainActivity : Activity() {
         if (refresh) refresh()
     }
 
+    // --- Period ---
+
+    private val periodChips by lazy {
+        listOf(R.id.a_p1, R.id.a_p2, R.id.a_p3, R.id.a_p4).map { findViewById<TextView>(it) }
+    }
+
+    private fun setupPeriodChips() {
+        Period.entries.forEachIndexed { i, period ->
+            periodChips[i].text = period.label
+            periodChips[i].setOnClickListener {
+                if (RatesRepository.period(this) == period) return@setOnClickListener
+                RatesRepository.setPeriod(this, period)
+                show(snapshot)
+                RatesWidget.renderAll(applicationContext)
+                refresh()
+            }
+        }
+    }
+
+    private fun updatePeriodChips() {
+        val selected = RatesRepository.period(this)
+        Period.entries.forEachIndexed { i, period ->
+            val on = period == selected
+            periodChips[i].setTextColor(if (on) Ui.GREEN else Ui.GREY)
+            periodChips[i].setBackgroundResource(if (on) R.drawable.chip_on else R.drawable.chip_off)
+        }
+    }
+
     private fun pickCurrency(title: String, codes: List<String>, onPick: (String) -> Unit) {
         val labels = codes.map { "$it  ·  ${RatesRepository.ALL_CURRENCIES[it] ?: ""}" }.toTypedArray()
         AlertDialog.Builder(this)
@@ -213,12 +304,8 @@ class MainActivity : Activity() {
             else -> getString(R.string.updated_at, Ui.time(s.updatedAt))
         }
 
-        val perEur = s?.perEur.orEmpty()
-        val base = inputs.keys.firstOrNull()
-        val baseRate = base?.let { perEur[it] }
-        ratesText.text = if (base == null || baseRate == null) "" else inputs.keys.filter { it != base }
-            .mapNotNull { code -> perEur[code]?.let { "1 $base = " + Ui.price(it / baseRate) + " " + code } }
-            .joinToString("\n")
+        updateRateLabels()
+        updatePeriodChips()
 
         pairsBox.removeAllViews()
         val inflater = LayoutInflater.from(this)
