@@ -3,7 +3,9 @@ package com.kosmet.currency
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.DragEvent
@@ -31,6 +33,7 @@ class MainActivity : Activity() {
     private var snapshot: Snapshot? = null
     private var lastEdited = "EUR"
     private var updatingFields = false
+    private var pendingUpdate: Updater.Release? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +57,69 @@ class MainActivity : Activity() {
         inputs.getValue(lastEdited).setText("1")
         show(snapshot)
         refresh()
+
+        findViewById<TextView>(R.id.version).apply {
+            text = getString(R.string.version, BuildConfig.VERSION_NAME)
+            setOnClickListener { checkForUpdate(manual = true) }
+        }
+        checkForUpdate(manual = false)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back from the "install unknown apps" setting.
+        val release = pendingUpdate
+        if (release != null && Updater.canInstall(this)) {
+            pendingUpdate = null
+            installUpdate(release)
+        }
+    }
+
+    // --- Updates ---
+
+    private fun checkForUpdate(manual: Boolean) {
+        Thread {
+            val release = try {
+                Updater.findUpdate()
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (release != null) {
+                    AlertDialog.Builder(this)
+                        .setTitle(R.string.update_title)
+                        .setMessage(getString(R.string.update_message, release.version))
+                        .setPositiveButton(R.string.install) { _, _ -> installUpdate(release) }
+                        .setNegativeButton(R.string.later, null)
+                        .show()
+                } else if (manual) {
+                    Toast.makeText(this, R.string.up_to_date, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun installUpdate(release: Updater.Release) {
+        if (!Updater.canInstall(this)) {
+            pendingUpdate = release
+            Toast.makeText(this, R.string.allow_install, Toast.LENGTH_LONG).show()
+            startActivity(
+                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:$packageName"))
+            )
+            return
+        }
+        Toast.makeText(this, R.string.downloading, Toast.LENGTH_SHORT).show()
+        val app = applicationContext
+        Thread {
+            try {
+                Updater.install(app, release)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(app, getString(R.string.update_failed, e.message ?: ""), Toast.LENGTH_LONG).show()
+                }
+            }
+        }.start()
     }
 
     /** Back from the chart screen, where the period may have changed. */

@@ -4,6 +4,9 @@ on:
   push:
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,3 +32,17 @@ jobs:
         with:
           name: CurrencyTracker-apk
           path: CurrencyTracker.apk
+
+      # The app checks the latest release and offers to install it.
+      - name: Publish release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/ccr-d1771aa3-0t6q66'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ github.event.head_commit.message }}
+        run: |
+          gh release create "v${{ github.run_number }}" CurrencyTracker.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "Version 1.0.${{ github.run_number }}" \
+            --notes "$NOTES" \
+            --latest

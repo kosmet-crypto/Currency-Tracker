@@ -33,4 +33,13 @@
     <string name="err_no_internet">нема интернета</string>
     <string name="err_timeout">истекло време</string>
     <string name="err_generic">грешка</string>
+    <string name="version">Верзија %1$s · додирни за проверу ажурирања</string>
+    <string name="update_title">Нова верзија</string>
+    <string name="update_message">Верзија %1$d је спремна за инсталацију.</string>
+    <string name="install">Инсталирај</string>
+    <string name="later">Касније</string>
+    <string name="up_to_date">Имаш најновију верзију</string>
+    <string name="allow_install">Дозволи инсталирање из овог извора, па се врати</string>
+    <string name="downloading">Преузимам ажурирање…</string>
+    <string name="update_failed">Ажурирање није успело: %1$s</string>
 </resources>

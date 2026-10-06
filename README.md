@@ -10,5 +10,9 @@ Android app with a currency converter and a home-screen widget. English by defau
 - [Yahoo Finance](https://finance.yahoo.com) chart data (unofficial endpoint, no key) for pairs and live converter rates.
 - [open.er-api.com](https://open.er-api.com) daily rates as fallback.
 
-## APK
-GitHub Actions builds the APK on every push (**Actions → Build APK → Artifacts → CurrencyTracker-apk**).
+## APK and updates
+GitHub Actions builds the APK on every push and publishes it as a release:
+https://github.com/kosmet-crypto/Currency-Tracker/releases/latest
+
+The app checks the latest release when it opens and offers **Install**; Android then asks to confirm.
+Tap the version line at the bottom of the app to check manually.
