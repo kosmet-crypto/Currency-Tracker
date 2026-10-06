@@ -10,7 +10,7 @@
     <LinearLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:minWidth="130dp"
+        android:minWidth="120dp"
         android:orientation="vertical">
 
         <TextView
@@ -44,4 +44,26 @@
         android:layout_weight="1"
         android:importantForAccessibility="no"
         android:scaleType="fitXY" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <ImageButton
+            android:id="@+id/p_swap"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/swap"
+            android:src="@drawable/ic_swap" />
+
+        <ImageButton
+            android:id="@+id/p_remove"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="40dp"
+            android:layout_height="36dp"
+            android:contentDescription="@string/remove"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
 </LinearLayout>

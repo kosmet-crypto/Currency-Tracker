@@ -25,12 +25,44 @@ data class Snapshot(
 )
 
 object RatesRepository {
-    val PAIRS = listOf("EUR/NOK", "EUR/USD", "USD/NOK")
-    val CURRENCIES = listOf("EUR", "USD", "NOK", "RSD")
+    /** Code to Serbian name, in the order shown in pickers. */
+    val ALL_CURRENCIES = linkedMapOf(
+        "EUR" to "евро", "USD" to "амерички долар", "NOK" to "норвешка круна", "RSD" to "српски динар",
+        "GBP" to "британска фунта", "CHF" to "швајцарски франак", "SEK" to "шведска круна",
+        "DKK" to "данска круна", "PLN" to "пољски злот", "CZK" to "чешка круна", "HUF" to "мађарска форинта",
+        "RON" to "румунски леј", "BGN" to "бугарски лев", "BAM" to "конвертибилна марка",
+        "MKD" to "македонски денар", "TRY" to "турска лира", "RUB" to "руска рубља", "UAH" to "украјинска гривна",
+        "ISK" to "исландска круна", "JPY" to "јапански јен", "CNY" to "кинески јуан", "CAD" to "канадски долар",
+        "AUD" to "аустралијски долар", "NZD" to "новозеландски долар", "INR" to "индијска рупија",
+        "AED" to "дирхам УАЕ", "ILS" to "израелски шекел", "SGD" to "сингапурски долар",
+        "HKD" to "хонгконшки долар", "KRW" to "јужнокорејски вон", "BRL" to "бразилски реал",
+        "MXN" to "мексички пезос", "ZAR" to "јужноафрички ранд", "THB" to "тајландски бат",
+    )
+
+    const val MAX_PAIRS = 4
 
     private const val PREFS = "rates"
     private const val KEY_SNAPSHOT = "snapshot"
     private const val KEY_API = "api_key"
+    private const val KEY_CURRENCIES = "converter_currencies"
+    private const val KEY_PAIRS = "widget_pairs"
+    private const val KEY_INVERTED = "inverted_symbols"
+
+    fun converterCurrencies(ctx: Context): List<String> =
+        prefs(ctx).getString(KEY_CURRENCIES, "EUR,USD,NOK,RSD")!!.split(',').filter { it.isNotBlank() }
+
+    fun setConverterCurrencies(ctx: Context, codes: List<String>) {
+        prefs(ctx).edit().putString(KEY_CURRENCIES, codes.joinToString(",")).apply()
+    }
+
+    fun widgetPairs(ctx: Context): List<String> =
+        prefs(ctx).getString(KEY_PAIRS, "EUR/NOK,EUR/USD,USD/NOK")!!.split(',').filter { it.isNotBlank() }
+
+    fun setWidgetPairs(ctx: Context, pairs: List<String>) {
+        prefs(ctx).edit().putString(KEY_PAIRS, pairs.joinToString(",")).apply()
+    }
+
+    fun inverse(symbol: String): String = symbol.split('/').let { it[1] + "/" + it[0] }
 
     private fun prefs(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -58,24 +90,7 @@ object RatesRepository {
     fun refresh(ctx: Context): Snapshot {
         val old = load(ctx)
         val errors = mutableListOf<String>()
-        val pairs = mutableListOf<PairQuote>()
         var fresh = 0
-
-        val key = apiKey(ctx)
-        if (key.isBlank()) {
-            errors += "Нема Twelve Data API кључа"
-            old?.pairs?.let { pairs += it }
-        } else {
-            for (symbol in PAIRS) {
-                try {
-                    pairs += fetchPair(symbol, key)
-                    fresh++
-                } catch (e: Exception) {
-                    errors += "$symbol: ${e.message ?: "грешка"}"
-                    old?.pairs?.find { it.symbol == symbol }?.let { pairs += it }
-                }
-            }
-        }
 
         val perEur = HashMap(old?.perEur ?: emptyMap())
         perEur["EUR"] = 1.0
@@ -83,11 +98,37 @@ object RatesRepository {
             perEur.putAll(fetchDailyPerEur())
             fresh++
         } catch (e: Exception) {
-            errors += "RSD: ${e.message ?: "грешка"}"
+            errors += "Курсна листа: ${e.message ?: "грешка"}"
         }
-        // Live quotes are fresher than the daily list.
-        pairs.find { it.symbol == "EUR/USD" }?.let { perEur["USD"] = it.price }
-        pairs.find { it.symbol == "EUR/NOK" }?.let { perEur["NOK"] = it.price }
+
+        val key = apiKey(ctx)
+        if (key.isBlank()) errors += "Нема Twelve Data API кључа"
+        val inverted = prefs(ctx).getStringSet(KEY_INVERTED, emptySet())!!.toMutableSet()
+        val pairs = mutableListOf<PairQuote>()
+        for (symbol in widgetPairs(ctx)) {
+            val quote = try {
+                if (key.isBlank()) null else fetchLive(symbol, key, inverted).also { fresh++ }
+            } catch (e: SymbolException) {
+                null // e.g. RSD pairs: shown with the daily rate, no chart
+            } catch (e: Exception) {
+                errors += "$symbol: ${e.message ?: "грешка"}"
+                null
+            }
+            // No live data: keep the last chart, or fall back to the daily rate.
+            pairs += quote
+                ?: old?.pairs?.find { it.symbol == symbol && it.points.isNotEmpty() }
+                ?: dailyQuote(symbol, perEur)
+                ?: continue
+        }
+        prefs(ctx).edit().putStringSet(KEY_INVERTED, inverted).apply()
+
+        // Live quotes against the euro are fresher than the daily list.
+        for (p in pairs) {
+            if (p.points.isEmpty()) continue
+            val (base, quote) = p.symbol.split('/')
+            if (base == "EUR") perEur[quote] = p.price
+            if (quote == "EUR" && p.price != 0.0) perEur[base] = 1 / p.price
+        }
 
         val snapshot = Snapshot(
             pairs = pairs,
@@ -99,6 +140,44 @@ object RatesRepository {
         return snapshot
     }
 
+    /** The chosen pairs in order, right after the user changes them and before a refresh. */
+    fun quotes(ctx: Context, snapshot: Snapshot?): List<Pair<String, PairQuote?>> =
+        widgetPairs(ctx).map { symbol ->
+            symbol to (snapshot?.pairs?.find { it.symbol == symbol }
+                ?: snapshot?.let { dailyQuote(symbol, it.perEur) })
+        }
+
+    private fun dailyQuote(symbol: String, perEur: Map<String, Double>): PairQuote? {
+        val (base, quote) = symbol.split('/')
+        val b = perEur[base] ?: return null
+        val q = perEur[quote] ?: return null
+        return PairQuote(symbol, q / b, 0.0, 0.0, emptyList())
+    }
+
+    /** Twelve Data lists most pairs in one direction only; try the other one and flip it. */
+    private fun fetchLive(symbol: String, key: String, inverted: MutableSet<String>): PairQuote {
+        val first = if (symbol in inverted) inverse(symbol) else symbol
+        val result = try {
+            fetchPair(first, key)
+        } catch (e: SymbolException) {
+            val other = inverse(first)
+            fetchPair(other, key).also {
+                if (other == symbol) inverted -= symbol else inverted += symbol
+            }
+        }
+        return if (result.symbol == symbol) result else invert(result, symbol)
+    }
+
+    private fun invert(p: PairQuote, symbol: String): PairQuote {
+        val points = p.points.map { 1 / it }
+        val price = points.last()
+        val first = points.first()
+        val change = price - first
+        return PairQuote(symbol, price, change, if (first != 0.0) change / first * 100 else 0.0, points)
+    }
+
+    private class SymbolException(msg: String) : IOException(msg)
+
     /** Last 24 hours in 15-minute steps. */
     private fun fetchPair(symbol: String, key: String): PairQuote {
         val url = "https://api.twelvedata.com/time_series" +
@@ -107,14 +186,14 @@ object RatesRepository {
             "&apikey=" + URLEncoder.encode(key, "UTF-8")
         val json = JSONObject(httpGet(url))
         if (json.optString("status") == "error") {
-            val msg = when (json.optInt("code")) {
-                429 -> "лимит захтева, пробај за минут"
-                401, 403 -> "погрешан API кључ"
-                else -> json.optString("message", "грешка")
+            when (json.optInt("code")) {
+                429 -> throw IOException("лимит захтева, пробај за минут")
+                401, 403 -> throw IOException("погрешан API кључ")
+                400, 404 -> throw SymbolException("пар није доступан уживо")
+                else -> throw IOException(json.optString("message", "грешка"))
             }
-            throw IOException(msg)
         }
-        val values = json.getJSONArray("values")
+        val values = json.optJSONArray("values") ?: throw SymbolException("нема података")
         // API returns newest first.
         val points = (values.length() - 1 downTo 0).map {
             values.getJSONObject(it).getString("close").toDouble()
@@ -130,7 +209,7 @@ object RatesRepository {
         val json = JSONObject(httpGet("https://open.er-api.com/v6/latest/EUR"))
         if (json.optString("result") != "success") throw IOException("курсна листа није доступна")
         val rates = json.getJSONObject("rates")
-        return CURRENCIES.filter { rates.has(it) }.associateWith { rates.getDouble(it) }
+        return ALL_CURRENCIES.keys.filter { rates.has(it) }.associateWith { rates.getDouble(it) }
     }
 
     private fun httpGet(url: String): String {

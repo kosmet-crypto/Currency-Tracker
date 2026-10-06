@@ -16,12 +16,15 @@ object Ui {
     const val RED = 0xFFC62828.toInt()
     const val GREY = 0xFF8A8F98.toInt()
 
-    fun changeColor(change: Double) = if (change >= 0) GREEN else RED
+    fun changeColor(p: PairQuote) = if (p.points.isEmpty()) GREY else if (p.change >= 0) GREEN else RED
 
-    fun price(v: Double): String = String.format(Locale.US, "%.4f", v)
+    /** Four significant decimals for small rates like NOK/USD, fewer for big ones like USD/RSD. */
+    fun price(v: Double): String = String.format(Locale.US, if (v >= 100) "%.2f" else if (v >= 0.1) "%.4f" else "%.6f", v)
 
+    /** Daily-only pairs have no 24h history. */
     fun change(p: PairQuote): String =
-        String.format(Locale.US, "%+.4f (%+.2f%%)", p.change, p.changePct)
+        if (p.points.isEmpty()) "дневни курс"
+        else String.format(Locale.US, if (p.price < 0.1) "%+.6f (%+.2f%%)" else "%+.4f (%+.2f%%)", p.change, p.changePct)
 
     fun time(millis: Long): String =
         if (millis <= 0) "—" else SimpleDateFormat("dd.MM. HH:mm", Locale.getDefault()).format(Date(millis))

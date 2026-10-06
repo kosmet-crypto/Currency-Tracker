@@ -2,9 +2,9 @@
 <resources>
     <string name="app_name">Курсеви</string>
     <string name="widget_name">Курсеви уживо</string>
-    <string name="widget_description">EUR/NOK, EUR/USD и USD/NOK са графиком за 24 сата</string>
+    <string name="widget_description">Изабрани парови валута са графиком за 24 сата</string>
     <string name="converter">Конвертор</string>
-    <string name="live">Уживо (24 сата)</string>
+    <string name="live">Виџет и курс уживо (24 сата)</string>
     <string name="refresh">Ажурирај</string>
     <string name="updating">Ажурирам…</string>
     <string name="updated_at">Ажурирано: %1$s</string>
@@ -13,4 +13,14 @@
     <string name="api_key_builtin">Користи се уграђени кључ</string>
     <string name="save">Сачувај</string>
     <string name="saved">Сачувано</string>
+    <string name="add_currency">+ Додај валуту</string>
+    <string name="add_pair">+ Додај пар</string>
+    <string name="pick_base">Прва валута</string>
+    <string name="pick_quote">Друга валута</string>
+    <string name="swap">Окрени</string>
+    <string name="remove">Уклони</string>
+    <string name="min_pairs">Виџет мора да има бар један пар</string>
+    <string name="max_pairs">Највише 4 пара</string>
+    <string name="min_currencies">Конвертору требају бар две валуте</string>
+    <string name="pair_exists">Тај пар већ постоји</string>
 </resources>

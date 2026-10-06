@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import android.widget.RemoteViews
 
 class RatesWidget : AppWidgetProvider() {
@@ -42,9 +43,10 @@ class RatesWidget : AppWidgetProvider() {
         const val ACTION_REFRESH = "com.kosmet.currency.REFRESH"
 
         private val ROWS = arrayOf(
-            intArrayOf(R.id.w_name1, R.id.w_price1, R.id.w_change1, R.id.w_chart1),
-            intArrayOf(R.id.w_name2, R.id.w_price2, R.id.w_change2, R.id.w_chart2),
-            intArrayOf(R.id.w_name3, R.id.w_price3, R.id.w_change3, R.id.w_chart3),
+            intArrayOf(R.id.w_row1, R.id.w_name1, R.id.w_price1, R.id.w_change1, R.id.w_chart1),
+            intArrayOf(R.id.w_row2, R.id.w_name2, R.id.w_price2, R.id.w_change2, R.id.w_chart2),
+            intArrayOf(R.id.w_row3, R.id.w_name3, R.id.w_price3, R.id.w_change3, R.id.w_chart3),
+            intArrayOf(R.id.w_row4, R.id.w_name4, R.id.w_price4, R.id.w_change4, R.id.w_chart4),
         )
 
         fun renderAll(context: Context, loading: Boolean = false) {
@@ -58,16 +60,24 @@ class RatesWidget : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, R.layout.widget_rates)
             val snapshot = RatesRepository.load(context)
 
-            RatesRepository.PAIRS.forEachIndexed { i, symbol ->
-                val (nameId, priceId, changeId, chartId) = ROWS[i].toList()
+            val quotes = RatesRepository.quotes(context, snapshot)
+            ROWS.forEachIndexed { i, ids ->
+                val (rowId, nameId, priceId, changeId) = ids.toList()
+                val chartId = ids[4]
+                val entry = quotes.getOrNull(i)
+                if (entry == null) {
+                    views.setViewVisibility(rowId, View.GONE)
+                    return@forEachIndexed
+                }
+                views.setViewVisibility(rowId, View.VISIBLE)
+                val (symbol, pair) = entry
                 views.setTextViewText(nameId, symbol)
-                val pair = snapshot?.pairs?.find { it.symbol == symbol }
                 if (pair == null) {
                     views.setTextViewText(priceId, "—")
                     views.setTextViewText(changeId, "")
                     views.setImageViewBitmap(chartId, Ui.chart(emptyList(), 1, 1, 0, 1f))
                 } else {
-                    val color = Ui.changeColor(pair.change)
+                    val color = Ui.changeColor(pair)
                     views.setTextViewText(priceId, Ui.price(pair.price))
                     views.setTextViewText(changeId, Ui.change(pair))
                     views.setTextColor(changeId, color)
