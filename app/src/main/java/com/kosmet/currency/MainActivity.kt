@@ -2,6 +2,7 @@ package com.kosmet.currency
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.content.Intent
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
@@ -46,15 +47,6 @@ class MainActivity : Activity() {
         converterBox.setOnDragListener { _, event -> onConverterDrag(event) }
         setupPeriodChips()
 
-        val keyField = findViewById<EditText>(R.id.api_key)
-        keyField.setText(RatesRepository.savedApiKey(this))
-        if (BuildConfig.TWELVEDATA_API_KEY.isNotBlank()) keyField.hint = getString(R.string.api_key_builtin)
-        findViewById<Button>(R.id.btn_save_key).setOnClickListener {
-            RatesRepository.setApiKey(this, keyField.text.toString())
-            Toast.makeText(this, R.string.saved, Toast.LENGTH_SHORT).show()
-            refresh()
-        }
-
         snapshot = RatesRepository.load(this)
         val currencies = RatesRepository.converterCurrencies(this)
         lastEdited = currencies.first()
@@ -64,13 +56,19 @@ class MainActivity : Activity() {
         refresh()
     }
 
+    /** Back from the chart screen, where the period may have changed. */
+    override fun onRestart() {
+        super.onRestart()
+        show(RatesRepository.load(this))
+    }
+
     private fun refresh() {
         status.setText(R.string.updating)
         refreshButton.isEnabled = false
         val app = applicationContext
         Thread {
             val result = try {
-                RatesRepository.refresh(app)
+                RatesRepository.refresh(app, withConverter = true)
             } catch (e: Exception) {
                 null
             }
@@ -94,7 +92,7 @@ class MainActivity : Activity() {
         for (code in codes) {
             val row = inflater.inflate(R.layout.item_currency, converterBox, false)
             row.findViewById<TextView>(R.id.c_code).text = code
-            row.findViewById<TextView>(R.id.c_name).text = RatesRepository.ALL_CURRENCIES[code] ?: ""
+            row.findViewById<TextView>(R.id.c_name).text = RatesRepository.currencyName(code)
             val field = row.findViewById<EditText>(R.id.c_amount)
             field.setText(amounts[code] ?: "")
             field.addTextChangedListener(object : TextWatcher {
@@ -124,7 +122,7 @@ class MainActivity : Activity() {
     }
 
     private fun addCurrency() {
-        val available = RatesRepository.ALL_CURRENCIES.keys.filter { it !in inputs }
+        val available = RatesRepository.ALL_CURRENCIES.filter { it !in inputs }
         pickCurrency(getString(R.string.add_currency), available) { code ->
             val codes = inputs.keys.toList() + code
             RatesRepository.setConverterCurrencies(this, codes)
@@ -218,7 +216,7 @@ class MainActivity : Activity() {
             Toast.makeText(this, R.string.max_pairs, Toast.LENGTH_SHORT).show()
             return
         }
-        val all = RatesRepository.ALL_CURRENCIES.keys.toList()
+        val all = RatesRepository.ALL_CURRENCIES
         pickCurrency(getString(R.string.pick_base), all) { base ->
             pickCurrency(getString(R.string.pick_quote), all.filter { it != base }) { quote ->
                 val symbol = "$base/$quote"
@@ -265,7 +263,7 @@ class MainActivity : Activity() {
 
     private fun setupPeriodChips() {
         Period.entries.forEachIndexed { i, period ->
-            periodChips[i].text = period.label
+            periodChips[i].setText(period.labelRes)
             periodChips[i].setOnClickListener {
                 if (RatesRepository.period(this) == period) return@setOnClickListener
                 RatesRepository.setPeriod(this, period)
@@ -286,7 +284,7 @@ class MainActivity : Activity() {
     }
 
     private fun pickCurrency(title: String, codes: List<String>, onPick: (String) -> Unit) {
-        val labels = codes.map { "$it  ·  ${RatesRepository.ALL_CURRENCIES[it] ?: ""}" }.toTypedArray()
+        val labels = codes.map { "$it  ·  ${RatesRepository.currencyName(it)}" }.toTypedArray()
         AlertDialog.Builder(this)
             .setTitle(title)
             .setItems(labels) { _, which -> onPick(codes[which]) }
@@ -313,17 +311,20 @@ class MainActivity : Activity() {
         for ((symbol, pair) in RatesRepository.quotes(this, s)) {
             val row = inflater.inflate(R.layout.item_pair, pairsBox, false)
             row.findViewById<TextView>(R.id.p_name).text = symbol
+            row.setOnClickListener {
+                startActivity(Intent(this, ChartActivity::class.java).putExtra(ChartActivity.EXTRA_SYMBOL, symbol))
+            }
             row.findViewById<ImageButton>(R.id.p_swap).setOnClickListener { swapPair(symbol) }
             row.findViewById<ImageButton>(R.id.p_remove).setOnClickListener { removePair(symbol) }
             if (pair != null) {
                 val color = Ui.changeColor(pair)
                 row.findViewById<TextView>(R.id.p_price).text = Ui.price(pair.price)
                 row.findViewById<TextView>(R.id.p_change).apply {
-                    text = Ui.change(pair)
+                    text = Ui.change(this@MainActivity, pair)
                     setTextColor(color)
                 }
                 row.findViewById<ImageView>(R.id.p_chart)
-                    .setImageBitmap(Ui.chart(pair.points, (160 * density).toInt(), (56 * density).toInt(), color, 2 * density))
+                    .setImageBitmap(Ui.chart(pair, (160 * density).toInt(), (56 * density).toInt(), 2 * density))
             } else {
                 row.findViewById<TextView>(R.id.p_price).text = "—"
             }

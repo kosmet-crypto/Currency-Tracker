@@ -1,18 +1,14 @@
-# Currency-Tracker
+# Currency Tracker
 
-Android апликација „Курсеви“:
+Android app with a currency converter and a home-screen widget. English by default, Serbian when the phone is set to Serbian.
 
-- **Конвертор**: куцаш износ у једну валуту, остале се одмах прерачунају. Валуте се додају и уклањају (34 на избор),
-  а редослед мења превлачењем (≡). Прва валута је основна и испод сваке је курс према њој.
-- **Период**: 1Д, 7Д, 30Д или 1Г за графике и промену, бира се у апликацији или горе лево у виџету.
-- **Виџет**: 1–4 изабрана пара (нпр. USD/NOK или NOK/USD, ⇄ окреће однос) са курсом, променом за 24 сата,
-  графиком и дугметом за ажурирање. Може да се смањи на два реда. Парови се бирају у апликацији.
-- Парови које Twelve Data нема уживо (нпр. са динаром) приказују дневни курс, без графика.
+- **Converter**: type an amount in one currency and the others update instantly. Add or remove currencies (34 to choose from) and drag ≡ to reorder; the first one is the base, and each row shows its rate against it.
+- **Widget**: 1–4 chosen pairs in either direction (⇄ swaps, e.g. USD/NOK ↔ NOK/USD), each with rate, change and chart. Shrinks to two rows. Period (1D, 7D, 1M, 1Y) is picked top-left; ⟳ refreshes.
+- **Chart screen**: tap a pair in the widget or app; slide a finger across the chart to read the rate and time at that point.
 
-## Извори
-- [Twelve Data](https://twelvedata.com) за курсеве уживо (EUR, USD, NOK), на сваких 15 минута за последња 24 сата.
-- [open.er-api.com](https://open.er-api.com) за динар, једном дневно.
+## Data
+- [Yahoo Finance](https://finance.yahoo.com) chart data (unofficial endpoint, no key) for pairs and live converter rates.
+- [open.er-api.com](https://open.er-api.com) daily rates as fallback.
 
 ## APK
-GitHub Actions гради APK на сваки push (**Actions → Build APK → Artifacts → CurrencyTracker-apk**).
-API кључ се узима из тајне `TWELVEDATA_API_KEY`. Може се унети и у самој апликацији, на дну екрана.
+GitHub Actions builds the APK on every push (**Actions → Build APK → Artifacts → CurrencyTracker-apk**).

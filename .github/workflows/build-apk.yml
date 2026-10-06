@@ -20,8 +20,6 @@ jobs:
           gradle-version: "8.14.3"
 
       - name: Build APK
-        env:
-          TWELVEDATA_API_KEY: ${{ secrets.TWELVEDATA_API_KEY }}
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Курсеви</string>
+    <string name="widget_name">Курсеви уживо</string>
+    <string name="widget_description">Изабрани парови валута са графиком</string>
+    <string name="converter">Конвертор</string>
+    <string name="live">Виџет и курс уживо</string>
+    <string name="refresh">Ажурирај</string>
+    <string name="updating">Ажурирам…</string>
+    <string name="updated_at">Ажурирано: %1$s</string>
+    <string name="no_data">Још нема података</string>
+    <string name="add_currency">+ Додај валуту</string>
+    <string name="add_pair">+ Додај пар</string>
+    <string name="pick_base">Прва валута</string>
+    <string name="pick_quote">Друга валута</string>
+    <string name="swap">Окрени</string>
+    <string name="remove">Уклони</string>
+    <string name="min_pairs">Виџет мора да има бар један пар</string>
+    <string name="max_pairs">Највише 4 пара</string>
+    <string name="min_currencies">Конвертору требају бар две валуте</string>
+    <string name="pair_exists">Тај пар већ постоји</string>
+    <string name="drag">Превуци</string>
+    <string name="drag_hint">Превуци ≡ за редослед. Прва валута је основна, остале се пореде са њом.</string>
+    <string name="base_currency">основна валута</string>
+    <string name="daily_rate">дневни курс</string>
+    <string name="daily_list">Курсна листа</string>
+    <string name="scrub_hint">Превуци прстом преко графика да видиш курс у том тренутку.</string>
+    <string name="period_d1">1Д</string>
+    <string name="period_w1">7Д</string>
+    <string name="period_m1">1М</string>
+    <string name="period_y1">1Г</string>
+    <string name="err_item">%1$s: %2$s</string>
+    <string name="err_no_internet">нема интернета</string>
+    <string name="err_timeout">истекло време</string>
+    <string name="err_generic">грешка</string>
+</resources>

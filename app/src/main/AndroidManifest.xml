@@ -19,6 +19,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ChartActivity"
+            android:exported="false"
+            android:taskAffinity="" />
+
         <receiver
             android:name=".RatesWidget"
             android:exported="false"

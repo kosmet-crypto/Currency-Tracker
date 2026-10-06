@@ -83,14 +83,24 @@ class RatesWidget : AppWidgetProvider() {
                 if (pair == null) {
                     views.setTextViewText(priceId, "—")
                     views.setTextViewText(changeId, "")
-                    views.setImageViewBitmap(chartId, Ui.chart(emptyList(), 1, 1, 0, 1f))
+                    views.setImageViewBitmap(chartId, Ui.chart(null, 1, 1, 1f))
                 } else {
                     val color = Ui.changeColor(pair)
                     views.setTextViewText(priceId, Ui.price(pair.price))
-                    views.setTextViewText(changeId, Ui.change(pair))
+                    views.setTextViewText(changeId, Ui.change(context, pair))
                     views.setTextColor(changeId, color)
-                    views.setImageViewBitmap(chartId, Ui.chart(pair.points, 360, 100, color, 3f))
+                    views.setImageViewBitmap(chartId, Ui.chart(pair, 360, 100, 3f))
                 }
+                val open = Intent(context, ChartActivity::class.java)
+                    .putExtra(ChartActivity.EXTRA_SYMBOL, symbol)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                views.setOnClickPendingIntent(
+                    rowId,
+                    PendingIntent.getActivity(
+                        context, 20 + i, open,
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    ),
+                )
             }
 
             // Header is narrow: just the time, with a warning sign if something failed.
@@ -105,7 +115,7 @@ class RatesWidget : AppWidgetProvider() {
             Period.entries.forEachIndexed { i, period ->
                 val id = PERIOD_CHIPS[i]
                 val on = period == selected
-                views.setTextViewText(id, period.label)
+                views.setTextViewText(id, context.getString(period.labelRes))
                 views.setTextColor(id, if (on) Ui.GREEN else Ui.GREY)
                 views.setInt(id, "setBackgroundResource", if (on) R.drawable.chip_on else R.drawable.chip_off)
                 val intent = Intent(context, RatesWidget::class.java)
@@ -125,14 +135,6 @@ class RatesWidget : AppWidgetProvider() {
                 R.id.w_refresh,
                 PendingIntent.getBroadcast(
                     context, 0, refresh,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                ),
-            )
-            val open = Intent(context, MainActivity::class.java)
-            views.setOnClickPendingIntent(
-                R.id.w_rows,
-                PendingIntent.getActivity(
-                    context, 1, open,
                     PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
                 ),
             )
