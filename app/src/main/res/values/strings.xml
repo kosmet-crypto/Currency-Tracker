@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Курсеви</string>
+    <string name="widget_name">Курсеви уживо</string>
+    <string name="widget_description">EUR/NOK, EUR/USD и USD/NOK са графиком за 24 сата</string>
+    <string name="converter">Конвертор</string>
+    <string name="live">Уживо (24 сата)</string>
+    <string name="refresh">Ажурирај</string>
+    <string name="updating">Ажурирам…</string>
+    <string name="updated_at">Ажурирано: %1$s</string>
+    <string name="no_data">Још нема података</string>
+    <string name="api_key">Twelve Data API кључ</string>
+    <string name="api_key_builtin">Користи се уграђени кључ</string>
+    <string name="save">Сачувај</string>
+    <string name="saved">Сачувано</string>
+</resources>
